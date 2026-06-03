@@ -8,14 +8,23 @@ human emotions" idea with an actual quantum circuit rather than marketing copy.
 
 import math
 
-from qiskit import QuantumCircuit
-from qiskit_aer import AerSimulator
-
-# Single shared simulator instance — building it once is cheaper per request.
-_SIMULATOR = AerSimulator()
+# qiskit / qiskit-aer are heavy to import (several seconds). We defer importing
+# them until the first sentiment computation so that app boot — and health
+# checks — stay fast (important for cold starts on Render/HF Spaces).
+_SIMULATOR = None
 
 # Default number of measurement shots. More shots -> smoother probabilities.
 DEFAULT_SHOTS = 1024
+
+
+def _get_simulator():
+    """Lazily build (and cache) the Aer simulator on first use."""
+    global _SIMULATOR
+    if _SIMULATOR is None:
+        from qiskit_aer import AerSimulator
+
+        _SIMULATOR = AerSimulator()
+    return _SIMULATOR
 
 
 def polarity_to_angle(polarity: float) -> float:
@@ -36,13 +45,15 @@ def measure_positive_probability(polarity: float, shots: int = DEFAULT_SHOTS) ->
     estimate it empirically from `shots` measurements so the value genuinely
     comes from the quantum simulator.
     """
+    from qiskit import QuantumCircuit
+
     theta = polarity_to_angle(polarity)
 
     circuit = QuantumCircuit(1, 1)
     circuit.ry(theta, 0)
     circuit.measure(0, 0)
 
-    result = _SIMULATOR.run(circuit, shots=shots).result()
+    result = _get_simulator().run(circuit, shots=shots).result()
     counts = result.get_counts()
 
     positive_counts = counts.get("1", 0)

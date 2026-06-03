@@ -33,6 +33,12 @@ def fetch_place_details(place_id):
     return result.get("name", "Unknown"), result.get("reviews", []), None
 
 
+@app.route("/health")
+def health():
+    """Lightweight liveness check (no qiskit import) for uptime pingers."""
+    return {"status": "ok"}, 200
+
+
 @app.route("/", methods=["GET", "POST"])
 def home():
     sentiment = None
