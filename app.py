@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from flask import Flask, render_template, request
 from textblob import TextBlob
 
+from aspects import analyze_aspects
 from quantum import quantum_sentiment
 
 load_dotenv()
@@ -33,6 +34,21 @@ def fetch_place_details(place_id):
     return result.get("name", "Unknown"), result.get("reviews", []), None
 
 
+def build_verdict(positive, negative, neutral):
+    """Turn the sentiment counts into a one-line headline."""
+    total = positive + negative + neutral
+    if not total:
+        return None
+    pct = round(positive / total * 100)
+    if positive >= negative and pct >= 60:
+        label, emoji, tone = "Guests are mostly positive", "😀", "positive"
+    elif negative > positive:
+        label, emoji, tone = "Guests are mostly negative", "😟", "negative"
+    else:
+        label, emoji, tone = "Reviews are mixed", "😐", "neutral"
+    return {"label": label, "emoji": emoji, "pct": pct, "tone": tone}
+
+
 @app.route("/health")
 def health():
     """Lightweight liveness check (no qiskit import) for uptime pingers."""
@@ -44,11 +60,18 @@ def home():
     sentiment = None
     text = None
     confidence = None
+    uncertainty = None
     reviews = []
     property_name = None
     positive = negative = neutral = 0
     avg_rating = None
+    rating_dist = [0, 0, 0, 0, 0]  # counts for 1,2,3,4,5 stars
+    verdict = None
+    aspects = []
+    best_review = None
+    worst_review = None
     error = None
+    active_tab = "hotel"
 
     if request.method == "POST":
         property_name_input = request.form.get("property_name", "").strip()
@@ -64,8 +87,14 @@ def home():
             result = quantum_sentiment(polarity)
             sentiment = result["label"]
             confidence = round(result["p_positive"] * 100)
+            uncertainty = round(result["uncertainty"] * 100)
             return render_template(
-                "index.html", sentiment=sentiment, text=text, confidence=confidence
+                "index.html",
+                sentiment=sentiment,
+                text=text,
+                confidence=confidence,
+                uncertainty=uncertainty,
+                active_tab="text",
             )
 
         # 2) A Places lookup requires a configured key.
@@ -125,31 +154,48 @@ def home():
 
                 if rating:
                     ratings.append(rating)
+                    if 1 <= rating <= 5:
+                        rating_dist[int(rating) - 1] += 1
 
                 reviews.append({
                     "author": review.get("author_name", "Anonymous"),
                     "rating": rating,
                     "text": review_text,
+                    "polarity": polarity,
                     "sentiment": sentiment_result,
                     "confidence": round(quantum["p_positive"] * 100),
+                    "p_positive": quantum["p_positive"],
                     "time": review.get("relative_time_description", "Recently"),
                 })
 
             if ratings:
                 avg_rating = round(sum(ratings) / len(ratings), 1)
 
+            if reviews:
+                verdict = build_verdict(positive, negative, neutral)
+                aspects = analyze_aspects(reviews)
+                best_review = max(reviews, key=lambda r: r["p_positive"])
+                worst_review = min(reviews, key=lambda r: r["p_positive"])
+
     return render_template(
         "index.html",
         sentiment=sentiment,
         text=text,
         confidence=confidence,
+        uncertainty=uncertainty,
         reviews=reviews,
         property_name=property_name,
         positive=positive,
         negative=negative,
         neutral=neutral,
         avg_rating=avg_rating,
+        rating_dist=rating_dist,
+        verdict=verdict,
+        aspects=aspects,
+        best_review=best_review,
+        worst_review=worst_review,
         error=error,
+        active_tab=active_tab,
     )
 
 

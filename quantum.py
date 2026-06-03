@@ -76,8 +76,13 @@ def quantum_sentiment(polarity: float, shots: int = DEFAULT_SHOTS) -> dict:
     else:
         label = "Neutral"
 
+    # Uncertainty peaks at a 50/50 superposition and is zero when the qubit
+    # collapses cleanly to |0> or |1>. This is the app's "emotional ambiguity".
+    uncertainty = 1.0 - abs(2.0 * p_positive - 1.0)
+
     return {
         "p_positive": p_positive,
         "p_negative": p_negative,
         "label": label,
+        "uncertainty": uncertainty,
     }

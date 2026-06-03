@@ -21,57 +21,120 @@
     .badge-positive { background-color: #16a34a; }
     .badge-neutral { background-color: #facc15; color: #000; }
     .badge-negative { background-color: #dc2626; }
+    .tab-btn { transition: all .2s; border-bottom: 3px solid transparent; }
+    .tab-btn.active { border-bottom-color: #818cf8; color: #fff; }
+    .tab-btn:not(.active) { color: #cbd5e1; }
+    /* loading spinner */
+    #overlay { background: rgba(15,23,42,.7); backdrop-filter: blur(4px); }
+    .spinner {
+      width: 56px; height: 56px; border-radius: 50%;
+      border: 5px solid rgba(255,255,255,.2); border-top-color: #818cf8;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .meter { height: 10px; border-radius: 9999px; background: rgba(255,255,255,.15); overflow: hidden; }
+    .meter > span { display:block; height:100%; border-radius:9999px; }
   </style>
 </head>
 
 <body class="flex flex-col items-center px-4 py-10">
-  <h1 class="text-4xl font-extrabold mb-2 text-center">Quantum Sentiment Analysis</h1>
+  <h1 class="text-4xl font-extrabold mb-2 text-center">⚛ Quantum Sentiment Analysis</h1>
   <p class="text-gray-300 text-center mb-8">AI + Quantum-Powered Review Intelligence for Hotels</p>
 
+  <!-- Loading overlay -->
+  <div id="overlay" class="hidden fixed inset-0 z-50 flex-col items-center justify-center flex">
+    <div class="spinner mb-4"></div>
+    <p class="text-lg font-semibold">Analyzing…</p>
+    <p class="text-gray-300 text-sm">Running the quantum simulation</p>
+  </div>
 
   <div class="glass rounded-2xl shadow-lg p-6 w-full max-w-2xl">
     {% if error %}
       <p class="text-red-400 text-center mb-3">{{ error }}</p>
     {% endif %}
-    <form method="POST" class="space-y-4">
-      <input type="text" name="property_name" placeholder="Enter Hotel Name"
+
+    <!-- Tabs -->
+    <div class="flex mb-5 border-b border-white/10">
+      <button id="tab-hotel-btn" onclick="showTab('hotel')" class="tab-btn flex-1 py-2 font-semibold">🏨 Analyze a Hotel</button>
+      <button id="tab-text-btn" onclick="showTab('text')" class="tab-btn flex-1 py-2 font-semibold">✍️ Analyze Your Text</button>
+    </div>
+
+    <!-- Hotel form -->
+    <form method="POST" id="panel-hotel" class="space-y-4 spinner-form">
+      <input type="text" name="property_name" id="hotel-input" placeholder="Enter Hotel Name (e.g. The Taj Mahal Palace, Mumbai)"
         class="w-full p-3 rounded-md bg-white/90 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-400" />
 
-      <input type="text" name="place_id" placeholder="Enter Google Place ID"
-        class="w-full p-3 rounded-md bg-white/90 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      <details class="text-sm text-gray-300">
+        <summary class="cursor-pointer select-none">Advanced: use a Google Place ID instead</summary>
+        <input type="text" name="place_id" placeholder="Enter Google Place ID"
+          class="mt-2 w-full p-3 rounded-md bg-white/90 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      </details>
 
-      <textarea name="feedback" placeholder="Or enter custom feedback text..."
-        class="w-full p-3 rounded-md bg-white/90 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-400"></textarea>
-
-      <div class="flex justify-between gap-3">
+      <div class="flex gap-3">
         <button type="submit"
-          class="flex-1 bg-indigo-600 hover:bg-indigo-700 transition py-2 rounded-md font-semibold">Fetch Reviews</button>
-        <button type="submit"
-          class="flex-1 bg-green-600 hover:bg-green-700 transition py-2 rounded-md font-semibold">Analyze Feedback</button>
+          class="flex-1 bg-indigo-600 hover:bg-indigo-700 transition py-2 rounded-md font-semibold">Fetch &amp; Analyze Reviews</button>
+        <button type="button" onclick="fillExample()"
+          class="px-4 bg-white/10 hover:bg-white/20 transition py-2 rounded-md font-semibold">Try an example</button>
       </div>
+    </form>
+
+    <!-- Text form -->
+    <form method="POST" id="panel-text" class="space-y-4 spinner-form hidden">
+      <textarea name="feedback" rows="4" placeholder="Paste any review or feedback text to analyze its sentiment..."
+        class="w-full p-3 rounded-md bg-white/90 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-400"></textarea>
+      <button type="submit"
+        class="w-full bg-green-600 hover:bg-green-700 transition py-2 rounded-md font-semibold">Analyze Feedback</button>
     </form>
   </div>
 
-  {% if sentiment %}
+  {# ---------- SINGLE FEEDBACK RESULT (with quantum visualization) ---------- #}
+  {% if sentiment and confidence is not none and not reviews %}
   <div class="mt-10 glass p-6 rounded-2xl max-w-2xl w-full">
-    <h2 class="text-xl font-semibold mb-2">Feedback Sentiment Result:</h2>
-    <p class="text-lg mb-4">{{ text }}</p>
-    <span class="px-3 py-1 rounded-full text-sm font-semibold
-      {% if sentiment == 'Positive' %}badge-positive
-      {% elif sentiment == 'Negative' %}badge-negative
-      {% else %}badge-neutral{% endif %}">
-      {{ sentiment }}
-    </span>
-    {% if confidence is not none %}
-    <p class="text-xs text-blue-300 mt-3">⚛ Quantum confidence (positive): {{ confidence }}%</p>
-    {% endif %}
+    <h2 class="text-xl font-semibold mb-3">Sentiment Result</h2>
+    <p class="text-gray-200 mb-4">“{{ text }}”</p>
+
+    <div class="grid md:grid-cols-2 gap-6 items-center">
+      <!-- Left: verdict + meters -->
+      <div>
+        <span class="inline-block px-3 py-1 rounded-full text-sm font-semibold mb-4
+          {% if sentiment == 'Positive' %}badge-positive
+          {% elif sentiment == 'Negative' %}badge-negative
+          {% else %}badge-neutral{% endif %}">
+          {{ sentiment }}
+        </span>
+
+        <p class="text-sm text-gray-300 mb-1">⚛ Quantum confidence (positive)</p>
+        <div class="meter mb-1"><span style="width: {{ confidence }}%; background:#22c55e;"></span></div>
+        <p class="text-right text-sm font-semibold mb-4">{{ confidence }}%</p>
+
+        <p class="text-sm text-gray-300 mb-1">Quantum uncertainty (ambiguity)</p>
+        <div class="meter mb-1"><span style="width: {{ uncertainty }}%; background:#facc15;"></span></div>
+        <p class="text-right text-sm font-semibold">{{ uncertainty }}%</p>
+      </div>
+
+      <!-- Right: Bloch-style qubit visualization -->
+      <div class="flex flex-col items-center">
+        <svg id="bloch" width="180" height="180" data-confidence="{{ confidence }}"></svg>
+        <p class="text-xs text-gray-400 mt-2 text-center">Measured qubit state<br>|Positive⟩ ↔ |Negative⟩</p>
+      </div>
+    </div>
   </div>
   {% endif %}
 
+  {# ---------- HOTEL REVIEWS RESULT ---------- #}
   {% if reviews %}
   <div class="mt-10 w-full max-w-4xl">
-    <h2 class="text-2xl font-bold mb-4 text-center">Google Reviews for {{ property_name }}</h2>
+    <h2 class="text-2xl font-bold mb-2 text-center">Analysis for {{ property_name }}</h2>
 
+    {% if verdict %}
+    <div class="glass rounded-2xl p-5 mb-6 text-center">
+      <p class="text-2xl font-bold">{{ verdict.emoji }} {{ verdict.label }}</p>
+      <p class="text-gray-300">{{ verdict.pct }}% of analyzed reviews are positive
+        {% if avg_rating is not none %}· average rating {{ avg_rating }} ⭐{% endif %}</p>
+    </div>
+    {% endif %}
+
+    <!-- Summary stat tiles -->
     <div class="glass p-5 rounded-2xl mb-6 grid grid-cols-3 gap-4 text-center">
       <div>
         <p class="text-2xl font-bold">{{ reviews|length }}</p>
@@ -87,13 +150,61 @@
       </div>
     </div>
 
-    <div class="glass p-5 rounded-2xl mb-6 flex flex-col items-center">
-      <h2 class="text-lg font-semibold text-gray-100 mb-3">Sentiment Breakdown</h2>
-      <div class="w-64 h-64">
-        <canvas id="sentimentChart"></canvas>
+    <!-- Charts -->
+    <div class="grid md:grid-cols-2 gap-6 mb-6">
+      <div class="glass p-5 rounded-2xl flex flex-col items-center">
+        <h3 class="text-lg font-semibold mb-3">Sentiment Breakdown</h3>
+        <div class="w-56 h-56"><canvas id="sentimentChart"></canvas></div>
+      </div>
+      <div class="glass p-5 rounded-2xl flex flex-col items-center">
+        <h3 class="text-lg font-semibold mb-3">Rating Distribution</h3>
+        <div class="w-full h-56"><canvas id="ratingChart"></canvas></div>
       </div>
     </div>
 
+    <!-- Aspect / theme breakdown -->
+    {% if aspects %}
+    <div class="glass p-5 rounded-2xl mb-6">
+      <h3 class="text-lg font-semibold mb-4">What guests talk about</h3>
+      <div class="space-y-3">
+        {% for a in aspects %}
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <span class="font-semibold">{{ a.theme }}
+              <span class="text-xs text-gray-400">({{ a.mentions }} mention{{ '' if a.mentions == 1 else 's' }})</span>
+            </span>
+            <span class="px-2 py-0.5 text-xs font-semibold rounded-full
+              {% if a.label == 'Positive' %}badge-positive
+              {% elif a.label == 'Negative' %}badge-negative
+              {% else %}badge-neutral{% endif %}">{{ a.label }}</span>
+          </div>
+          <div class="meter"><span style="width: {{ a.pct_positive }}%; background:#22c55e;"></span></div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Best & worst -->
+    <div class="grid md:grid-cols-2 gap-6 mb-6">
+      {% if best_review %}
+      <div class="glass p-5 rounded-xl border-l-4" style="border-left-color:#22c55e;">
+        <h4 class="font-semibold text-green-400 mb-2">👍 Most positive review</h4>
+        <p class="text-sm text-gray-200 mb-2">“{{ best_review.text }}”</p>
+        <p class="text-xs text-gray-400">— {{ best_review.author }} · ⭐ {{ best_review.rating }} · confidence {{ best_review.confidence }}%</p>
+      </div>
+      {% endif %}
+      {% if worst_review %}
+      <div class="glass p-5 rounded-xl border-l-4" style="border-left-color:#dc2626;">
+        <h4 class="font-semibold text-red-400 mb-2">👎 Most critical review</h4>
+        <p class="text-sm text-gray-200 mb-2">“{{ worst_review.text }}”</p>
+        <p class="text-xs text-gray-400">— {{ worst_review.author }} · ⭐ {{ worst_review.rating }} · confidence {{ worst_review.confidence }}%</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- All reviews -->
+    <h3 class="text-xl font-bold mb-4 text-center">All Reviews</h3>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
       {% for r in reviews %}
       <div class="glass p-5 rounded-xl shadow-lg">
@@ -116,59 +227,113 @@
       {% endfor %}
     </div>
   </div>
-  <section class="mt-8 p-6 bg-white/10 rounded-lg text-white shadow-lg">
-  <h2 class="text-2xl font-semibold mb-3 text-center">Why This App Is Different</h2>
-  <p class="text-gray-200 leading-relaxed text-center max-w-3xl mx-auto">
-    Our Review Sentiment Analyzer goes beyond standard AI-based text analysis.  
-    While traditional systems rely purely on deterministic NLP sentiment scoring,  
-    this app conceptually integrates <span class="font-semibold text-yellow-300">quantum simulation principles</span>  
-    to model the *probabilistic nature of human emotions*.
-  </p>
+  {% endif %}
 
-  <div class="mt-5 grid md:grid-cols-3 gap-5 text-center">
-    <div class="bg-white/5 p-4 rounded-lg">
-      <h3 class="text-xl font-semibold mb-2 text-yellow-400">🎯 AI Precision</h3>
-      <p class="text-gray-300 text-sm">Each review is processed using NLP polarity analysis powered by TextBlob to identify hidden tones within user feedback.</p>
+  <section class="mt-10 p-6 glass rounded-2xl max-w-4xl w-full">
+    <h2 class="text-2xl font-semibold mb-3 text-center">Why This App Is Different</h2>
+    <p class="text-gray-200 leading-relaxed text-center max-w-3xl mx-auto">
+      Beyond standard NLP scoring, each review's tone is encoded onto a qubit and
+      <span class="font-semibold text-yellow-300">measured on a quantum simulator</span>,
+      modelling the probabilistic nature of human emotion.
+    </p>
+    <div class="mt-5 grid md:grid-cols-3 gap-5 text-center">
+      <div class="bg-white/5 p-4 rounded-lg">
+        <h3 class="text-lg font-semibold mb-2 text-yellow-400">🎯 AI Precision</h3>
+        <p class="text-gray-300 text-sm">NLP polarity analysis (TextBlob) extracts the tone of every review.</p>
+      </div>
+      <div class="bg-white/5 p-4 rounded-lg">
+        <h3 class="text-lg font-semibold mb-2 text-blue-400">⚛ Quantum Simulation</h3>
+        <p class="text-gray-300 text-sm">A real qiskit-aer circuit measures sentiment as a probability, capturing emotional uncertainty.</p>
+      </div>
+      <div class="bg-white/5 p-4 rounded-lg">
+        <h3 class="text-lg font-semibold mb-2 text-green-400">📊 Actionable Insights</h3>
+        <p class="text-gray-300 text-sm">Theme breakdowns and rating trends show exactly what to improve.</p>
+      </div>
     </div>
-    <div class="bg-white/5 p-4 rounded-lg">
-      <h3 class="text-xl font-semibold mb-2 text-blue-400">⚛ Quantum Simulation</h3>
-      <p class="text-gray-300 text-sm">The app emulates quantum probability states to better represent emotional uncertainty—capturing more nuanced sentiment patterns.</p>
-    </div>
-    <div class="bg-white/5 p-4 rounded-lg">
-      <h3 class="text-xl font-semibold mb-2 text-green-400">📊 Actionable Insights</h3>
-      <p class="text-gray-300 text-sm">You get clear insights through visual sentiment distribution, helping identify satisfaction trends and improvement areas instantly.</p>
-    </div>
-  </div>
-
-  <p class="text-gray-300 text-center mt-6 italic">
-    “Bridging AI and Quantum Concepts — making review analysis smarter, faster, and more human-like.”
-  </p>
-</section>
-
+  </section>
 
   <script>
-    const ctx = document.getElementById('sentimentChart').getContext('2d');
-    new Chart(ctx, {
+    // ---- Tabs ----
+    function showTab(name) {
+      document.getElementById('panel-hotel').classList.toggle('hidden', name !== 'hotel');
+      document.getElementById('panel-text').classList.toggle('hidden', name !== 'text');
+      document.getElementById('tab-hotel-btn').classList.toggle('active', name === 'hotel');
+      document.getElementById('tab-text-btn').classList.toggle('active', name === 'text');
+    }
+    showTab("{{ active_tab }}");
+
+    // ---- Example ----
+    function fillExample() {
+      document.getElementById('hotel-input').value = 'The Taj Mahal Palace, Mumbai';
+    }
+
+    // ---- Loading spinner on submit ----
+    document.querySelectorAll('.spinner-form').forEach(function (f) {
+      f.addEventListener('submit', function () {
+        document.getElementById('overlay').classList.remove('hidden');
+      });
+    });
+
+    // ---- Charts ----
+    {% if reviews %}
+    new Chart(document.getElementById('sentimentChart'), {
       type: 'pie',
       data: {
         labels: ['Positive', 'Neutral', 'Negative'],
         datasets: [{
           data: [{{ positive }}, {{ neutral }}, {{ negative }}],
           backgroundColor: ['#22c55e', '#facc15', '#ef4444'],
-          borderColor: '#1e293b',
-          borderWidth: 2
+          borderColor: '#1e293b', borderWidth: 2
+        }]
+      },
+      options: { plugins: { legend: { position: 'bottom', labels: { color: '#fff' } } } }
+    });
+
+    new Chart(document.getElementById('ratingChart'), {
+      type: 'bar',
+      data: {
+        labels: ['1★', '2★', '3★', '4★', '5★'],
+        datasets: [{
+          data: {{ rating_dist | tojson }},
+          backgroundColor: ['#ef4444', '#f97316', '#facc15', '#84cc16', '#22c55e']
         }]
       },
       options: {
-        plugins: {
-          legend: {
-            position: 'bottom',
-            labels: { color: '#ffffff', font: { size: 14 } }
-          }
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#fff' }, grid: { display: false } },
+          y: { ticks: { color: '#fff', precision: 0 }, grid: { color: 'rgba(255,255,255,.1)' } }
         }
       }
     });
+    {% endif %}
+
+    // ---- Bloch-style qubit visualization ----
+    (function () {
+      var svg = document.getElementById('bloch');
+      if (!svg) return;
+      var p = parseFloat(svg.dataset.confidence) / 100;   // P(positive)
+      var cx = 90, cy = 90, R = 70;
+      var NS = 'http://www.w3.org/2000/svg';
+      function el(tag, attrs) {
+        var e = document.createElementNS(NS, tag);
+        for (var k in attrs) e.setAttribute(k, attrs[k]);
+        return e;
+      }
+      // outer circle + axis
+      svg.appendChild(el('circle', { cx: cx, cy: cy, r: R, fill: 'rgba(255,255,255,.05)', stroke: 'rgba(255,255,255,.25)', 'stroke-width': 1 }));
+      svg.appendChild(el('line', { x1: cx, y1: cy - R, x2: cx, y2: cy + R, stroke: 'rgba(255,255,255,.15)', 'stroke-width': 1 }));
+      // poles
+      svg.appendChild(el('circle', { cx: cx, cy: cy - R, r: 4, fill: '#22c55e' }));
+      svg.appendChild(el('circle', { cx: cx, cy: cy + R, r: 4, fill: '#ef4444' }));
+      // state vector: p=1 -> up (positive), p=0 -> down (negative)
+      var ang = (1 - p) * Math.PI;                // 0..pi from the top
+      var tx = cx + R * Math.sin(ang);
+      var ty = cy - R * Math.cos(ang);
+      svg.appendChild(el('line', { x1: cx, y1: cy, x2: tx, y2: ty, stroke: '#818cf8', 'stroke-width': 3, 'stroke-linecap': 'round' }));
+      svg.appendChild(el('circle', { cx: tx, cy: ty, r: 6, fill: '#818cf8' }));
+      svg.appendChild(el('circle', { cx: cx, cy: cy, r: 3, fill: '#fff' }));
+    })();
   </script>
-  {% endif %}
 </body>
 </html>
