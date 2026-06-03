@@ -1,3 +1,13 @@
+---
+title: Quantum Sentiment Analysis
+emoji: ⚛️
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # Quantum — Hotel Review Sentiment Analysis
 
 A Flask app that analyzes hotel review sentiment. It combines classical NLP
