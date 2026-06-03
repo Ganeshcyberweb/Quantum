@@ -56,18 +56,36 @@
   <div class="mt-10 glass p-6 rounded-2xl max-w-2xl w-full">
     <h2 class="text-xl font-semibold mb-2">Feedback Sentiment Result:</h2>
     <p class="text-lg mb-4">{{ text }}</p>
-    <span class="px-3 py-1 rounded-full text-sm font-semibold 
+    <span class="px-3 py-1 rounded-full text-sm font-semibold
       {% if sentiment == 'Positive' %}badge-positive
       {% elif sentiment == 'Negative' %}badge-negative
       {% else %}badge-neutral{% endif %}">
       {{ sentiment }}
     </span>
+    {% if confidence is not none %}
+    <p class="text-xs text-blue-300 mt-3">⚛ Quantum confidence (positive): {{ confidence }}%</p>
+    {% endif %}
   </div>
   {% endif %}
 
   {% if reviews %}
   <div class="mt-10 w-full max-w-4xl">
     <h2 class="text-2xl font-bold mb-4 text-center">Google Reviews for {{ property_name }}</h2>
+
+    <div class="glass p-5 rounded-2xl mb-6 grid grid-cols-3 gap-4 text-center">
+      <div>
+        <p class="text-2xl font-bold">{{ reviews|length }}</p>
+        <p class="text-xs text-gray-300">Reviews analyzed</p>
+      </div>
+      <div>
+        <p class="text-2xl font-bold text-yellow-400">{{ avg_rating if avg_rating is not none else '—' }} ⭐</p>
+        <p class="text-xs text-gray-300">Average rating</p>
+      </div>
+      <div>
+        <p class="text-2xl font-bold text-green-400">{{ positive }}</p>
+        <p class="text-xs text-gray-300">Positive reviews</p>
+      </div>
+    </div>
 
     <div class="glass p-5 rounded-2xl mb-6 flex flex-col items-center">
       <h2 class="text-lg font-semibold text-gray-100 mb-3">Sentiment Breakdown</h2>
@@ -93,6 +111,7 @@
             {{ r.sentiment }}
           </span>
         </div>
+        <p class="text-xs text-blue-300 mt-2">⚛ Quantum confidence: {{ r.confidence }}%</p>
       </div>
       {% endfor %}
     </div>
